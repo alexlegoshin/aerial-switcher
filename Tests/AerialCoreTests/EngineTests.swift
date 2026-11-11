@@ -135,6 +135,14 @@ import Testing
         #expect(!again.rotation.onDeck.isEmpty)
     }
 
+    @Test func upcomingShowsEachPickOnce() throws {
+        let r = try rig(at: Fixtures.date(2026, 11, 11, 16), onDisk: [Self.ids.night, Self.ids.earth])
+        r.engine.tick()
+        let nights = r.engine.upcoming.filter { $0.phase == .night }
+        #expect(nights.count == 2)
+        #expect(nights.first?.pick != nil && nights.last?.pick == nil)
+    }
+
     @Test func picksFromOlderRulesAreRedone() throws {
         let r = try rig(at: Fixtures.date(2026, 11, 11, 2), onDisk: [Self.ids.night, Self.ids.earth])
         r.engine.tick()

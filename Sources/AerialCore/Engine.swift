@@ -75,7 +75,12 @@ public final class Engine {
 
     /// What will show at each coming change of the part of the day.
     public var upcoming: [(date: Date, phase: SkyPhase, pick: Pick?)] {
-        clock.transitions(after: now(), horizon: 26 * 3600).map { ($0.date, $0.phase, rotation.onDeck[$0.phase]) }
+        // One pick per part of the day: a second occurrence gets its own pick only after the
+        // first one has been shown.
+        var seen = Set<SkyPhase>()
+        return clock.transitions(after: now(), horizon: 26 * 3600).map { transition in
+            (transition.date, transition.phase, seen.insert(transition.phase).inserted ? rotation.onDeck[transition.phase] : nil)
+        }
     }
 
     // MARK: - Changing settings

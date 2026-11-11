@@ -237,8 +237,8 @@ private struct UpcomingPane: View {
                                 Text(pick.reason.title).foregroundStyle(.secondary)
                                 Text(model.status(of: clip.id) ?? "on disk ✓").foregroundStyle(.secondary)
                             } else {
-                                Text("—")
-                                Text("")
+                                Text("—").foregroundStyle(.secondary)
+                                Text("picked after the one before is shown").foregroundStyle(.secondary)
                                 Text("")
                             }
                         }
