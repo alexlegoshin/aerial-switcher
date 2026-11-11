@@ -93,14 +93,26 @@ public struct Picker: Sendable {
             return 0
         }
         if clip.zone == .earth { return 0 }
+        // Sun near the horizon: as close to a real sunrise or sunset as the pool allows.
+        // Named shots first; then twilight-bright ones by how warm their palette is (cold
+        // underwater blues drop out); sunlit day shots only when strongly warm, and never enough
+        // to beat a real one.
+        let warmth = clip.metrics?.warmth ?? 0
+        let horizon = 0.4 + 0.6 * warmth
         switch (phase, clip.tone) {
         case (_, .night): return 0
-        case (.dawn, .dawn), (.morning, .morning), (.day, .day), (.day, .bright), (.golden, .golden), (.dusk, .dusk): return 1
-        case (.dawn, .twilight), (.dusk, .twilight): return 0.9
-        case (.dawn, .dusk), (.dusk, .dawn), (.golden, .twilight), (.morning, .bright): return 0.8
-        case (.morning, .day), (.day, .morning), (.golden, .dusk), (.dusk, .golden): return 0.7
-        case (.dawn, .morning), (.dawn, .golden), (.morning, .dawn), (.morning, .golden), (.golden, .morning), (.golden, .dawn): return 0.6
-        case (.morning, .twilight), (.day, .golden), (.golden, .day), (.golden, .bright): return 0.5
+        case (.dawn, .dawn), (.dusk, .dusk), (.golden, .golden), (.golden, .dusk): return 1
+        case (.dawn, .dusk), (.dusk, .dawn), (.dusk, .golden), (.golden, .dawn): return 0.9
+        case (.dawn, .golden): return 0.8
+        case (.dawn, .twilight), (.dusk, .twilight), (.golden, .twilight): return horizon
+        case (.dawn, .morning): return 0.7
+        case (.golden, .morning): return 0.4
+        case (.golden, .day), (.golden, .bright): return 0.15 + 0.3 * warmth
+        case (.morning, .morning), (.day, .day), (.day, .bright): return 1
+        case (.morning, .bright): return 0.8
+        case (.morning, .day), (.day, .morning): return 0.7
+        case (.morning, .dawn), (.morning, .golden): return 0.6
+        case (.morning, .twilight), (.day, .golden): return 0.5
         default: return 0
         }
     }
@@ -131,9 +143,13 @@ public struct Picker: Sendable {
         }
 
         func resolve(_ clip: Clip) -> Pick? {
-            let own = suitability(of: clip, for: phase)
-            if own >= Self.good, let result = pick([(clip, own)], .direct) { return result }
-            if let result = pick(samePlace(as: clip, excluding: clip.id), .direct) { return result }
+            // The best shot of the drawn clip's place, strongly favored (weight = suitability³):
+            // drawing "Los Angeles Hills" at golden hour leads to "Los Angeles Sunset".
+            let place = pool.filter { $0.placeID == clip.placeID }
+                .map { ($0, suitability(of: $0, for: phase)) }
+                .filter { $0.1 >= Self.good }
+                .map { ($0.0, $0.1 * $0.1 * $0.1) }
+            if let result = pick(place, .direct) { return result }
             guard phase == .night else { return nil }
 
             let earth = pool.filter { $0.zone == .earth && $0.region != nil && $0.region == clip.region }
@@ -166,7 +182,14 @@ public struct Picker: Sendable {
         }
 
         // Recent clips and places get fewer tickets (never none: a repeat beats nothing).
-        var tickets = pool.map { ($0, (recentPlaces.contains($0.placeID) ? 0.3 : 1.0) * (recentClips.contains($0.id) ? 0.05 : 1.0)) }
+        // By day, a ticket counts as much as the best its place can offer, so a real sunset is
+        // drawn more often than a passable one. At night the fallbacks decide instead.
+        func fit(_ clip: Clip) -> Double {
+            guard phase != .night else { return 1 }
+            let best = pool.filter { $0.placeID == clip.placeID }.map { suitability(of: $0, for: phase) }.max() ?? 0
+            return 0.05 + best * best * best
+        }
+        var tickets = pool.map { ($0, fit($0) * (recentPlaces.contains($0.placeID) ? 0.3 : 1.0) * (recentClips.contains($0.id) ? 0.05 : 1.0)) }
         while let ticket = rng.weighted(tickets.map { ($0.0, $0.1) }) {
             tickets.removeAll { $0.0.id == ticket.id }
             if let result = resolve(ticket) { return result }

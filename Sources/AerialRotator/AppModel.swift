@@ -10,6 +10,7 @@ final class AppModel {
     let thumbnails: Thumbnails
     private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     var poolOnly = false
+    var citySearch = ""
     var error: String?
 
     @ObservationIgnored private var network: NetworkWatcher?

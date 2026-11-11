@@ -51,7 +51,14 @@ public final class Engine {
         self.lowPowerMode = lowPowerMode
         self.log = log
         config = Config.load(from: paths.config)
-        rotation = RotationState.load(from: paths.rotation)
+        var loaded = RotationState.load(from: paths.rotation)
+        if loaded.rules != RotationState.currentRules {
+            // Picks made under older rules are redone; what is on screen stays.
+            loaded.onDeck = [:]
+            loaded.rules = RotationState.currentRules
+            try? loaded.save(to: paths.rotation)
+        }
+        rotation = loaded
         failures = FailureLog.load(from: paths.cacheState)
         try? config.save(to: paths.config)
         reloadCatalog()

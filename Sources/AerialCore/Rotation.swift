@@ -19,8 +19,13 @@ public struct RotationState: Codable, Equatable, Sendable {
     /// Recently shown clip IDs, newest first.
     public var history: [String] = []
     public var lastShown: [String: Date] = [:]
+    /// Version of the choosing rules the picks were made with; picks from older rules are redone.
+    public var rules: Int?
 
     public init() {}
+
+    /// Bump when the choosing rules change, so picks made under the old ones are redone.
+    public static let currentRules = 3
 
     static let historyLimit = 40
 

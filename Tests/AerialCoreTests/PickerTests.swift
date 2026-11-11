@@ -108,6 +108,37 @@ import Testing
         #expect(Fixtures.picker([]).choose(for: .day, previous: nil, recent: [], rng: &rng) == nil)
     }
 
+    @Test func sunIsNearTheHorizonPicksSunsetLikeClips() {
+        let sunset = Fixtures.clip("Grand Canyon Sunset", place: "Grand Canyon", zone: .land, brightness: 67)
+        let warmTwilight = Fixtures.clip("Sonoma Horizon", place: "Sonoma", zone: .land, brightness: 70)
+        let coldTwilight = Fixtures.clip("Kelp Forest", place: "Kelp Forest", zone: .water, brightness: 68, hues: Fixtures.hue(6))
+        let sunnyDesert = Fixtures.clip("Goa Coast", place: "Goa", zone: .land, brightness: 91)
+        let picker = Fixtures.picker([sunset, warmTwilight, coldTwilight, sunnyDesert]) { $0.continuity = 0 }
+        for phase in [SkyPhase.dawn, .golden, .dusk] {
+            let ids = Set(picks(picker, phase, runs: 400).map(\.clipID))
+            #expect(ids == [sunset.id, warmTwilight.id], "\(phase): \(ids)")
+        }
+        // With nothing sunset-like at all, the best of the rest still beats nothing.
+        let cold = Fixtures.picker([coldTwilight])
+        #expect(picks(cold, .dusk, runs: 5).allSatisfy { $0.clipID == coldTwilight.id && $0.reason == .fallback })
+    }
+
+    @Test func aBetterShotOfThePlaceWins() {
+        // Drawing Sonoma Clouds (bright) at golden hour leads to Sonoma Horizon.
+        let picker = Fixtures.picker([Fixtures.sonomaClouds, Fixtures.sonomaHorizon]) { $0.continuity = 0 }
+        #expect(picks(picker, .golden, runs: 200).allSatisfy { $0.clipID == Fixtures.sonomaHorizon.id })
+    }
+
+    @Test func theRealSunsetOfAPlaceBeatsItsEveningLight() {
+        let hills = Fixtures.clip("Los Angeles Hills", place: "Los Angeles", zone: .city, brightness: 77,
+                                  hues: [0.1, 0.1] + [Double](repeating: 0, count: 6) + [0.8, 0, 0, 0])  // warmth ≈ 0.29, as measured
+        let sunset = Fixtures.clip("Los Angeles Sunset", place: "Los Angeles", zone: .city, brightness: 64)
+        let picker = Fixtures.picker([hills, sunset]) { $0.continuity = 0 }
+        let result = picks(picker, .golden, runs: 1000)
+        let real = result.filter { $0.clipID == sunset.id }.count
+        #expect(real > 700, "\(real) of 1000")
+    }
+
     @Test func suitabilityTable() {
         let picker = Fixtures.picker(Fixtures.all)
         #expect(picker.suitability(of: Fixtures.sequoiaNight, for: .night) == 1)

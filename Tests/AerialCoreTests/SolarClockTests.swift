@@ -65,3 +65,24 @@ import Testing
         #expect(starts[.night]! < starts[.dawn]!)
     }
 }
+
+@Suite struct CitiesTests {
+    @Test func findsByNameOrCountryIgnoringCaseAndAccents() {
+        #expect(Cities.search("sao").first?.name == "São Paulo")
+        #expect(Cities.search("tok").map(\.name) == ["Tokyo", "Vladivostok"])
+        #expect(Cities.search("japan").map(\.name) == ["Tokyo"])
+        #expect(Cities.search("san").first?.name == "San Francisco", "names starting with the query first")
+        #expect(Cities.search("  ").isEmpty)
+        #expect(!Cities.all.contains { $0.name == "Zelenograd" })
+    }
+
+    @Test func samaraUsesUlyanovsksPosition() throws {
+        let samara = try #require(Cities.all.first { $0.name == "Samara" })
+        #expect(abs(samara.latitude - 54.31) < 0.01 && abs(samara.longitude - 48.40) < 0.01)
+    }
+
+    @Test func everyCityIsOnTheGlobeAndUnique() {
+        #expect(Set(Cities.all.map(\.name)).count == Cities.all.count)
+        #expect(Cities.all.allSatisfy { abs($0.latitude) <= 90 && abs($0.longitude) <= 180 })
+    }
+}

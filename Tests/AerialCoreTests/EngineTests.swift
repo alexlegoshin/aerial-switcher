@@ -135,6 +135,19 @@ import Testing
         #expect(!again.rotation.onDeck.isEmpty)
     }
 
+    @Test func picksFromOlderRulesAreRedone() throws {
+        let r = try rig(at: Fixtures.date(2026, 11, 11, 2), onDisk: [Self.ids.night, Self.ids.earth])
+        r.engine.tick()
+        var old = r.engine.rotation
+        old.rules = nil
+        old.onDeck[.day] = Pick(clipID: "STALE", reason: .direct)
+        try old.save(to: r.paths.rotation)
+        let again = Engine(paths: r.paths, reload: {}, now: { r.clock.now }, log: Log(folder: r.paths.logs, enabled: false))
+        #expect(again.rotation.onDeck.isEmpty)
+        #expect(again.rotation.shown == old.shown)
+        #expect(again.rotation.rules == RotationState.currentRules)
+    }
+
     @Test func downloadsWhatIsComingUp() async throws {
         let r = try rig(at: Fixtures.date(2026, 11, 11, 12), onDisk: [], pinned: [Self.ids.earth])
         r.engine.networkChanged(.init(satisfied: true, wifi: true, wifiAddresses: ["192.168.1.5"]))

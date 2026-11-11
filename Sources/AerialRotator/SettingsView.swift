@@ -312,12 +312,6 @@ private struct GeneralPane: View {
     let model: AppModel
     private var engine: Engine { model.engine }
 
-    static let places: [(String, Double, Double)] = [
-        ("Moscow", 55.7558, 37.6173), ("Saint Petersburg", 59.9343, 30.3351), ("Zelenograd", 55.9825, 37.1814),
-        ("Kazan", 55.7963, 49.1088), ("Novosibirsk", 55.0084, 82.9357), ("London", 51.5074, -0.1278),
-        ("New York", 40.7128, -74.0060), ("San Francisco", 37.7749, -122.4194),
-    ]
-
     var body: some View {
         Form {
             LabeledContent("Wallpaper") {
@@ -331,20 +325,20 @@ private struct GeneralPane: View {
             }
             LabeledContent("Sun") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Picker("Place", selection: Binding(
-                        get: { engine.config.placeName },
-                        set: { name in
-                            guard let place = Self.places.first(where: { $0.0 == name }) else { return }
-                            engine.update { $0.placeName = place.0; $0.latitude = place.1; $0.longitude = place.2 }
-                        }
-                    )) {
-                        ForEach(Self.places, id: \.0) { Text($0.0).tag($0.0) }
-                        if !Self.places.contains(where: { $0.0 == engine.config.placeName }) {
-                            Text(engine.config.placeName).tag(engine.config.placeName)
-                        }
+                    HStack {
+                        Text(engine.config.placeName).font(.headline)
+                        Text(String(format: "%.4f, %.4f", engine.config.latitude, engine.config.longitude))
+                            .monospacedDigit().foregroundStyle(.secondary)
                     }
-                    .labelsHidden()
-                    .fixedSize()
+                    TextField("Search a city…", text: Binding(get: { model.citySearch }, set: { model.citySearch = $0 }))
+                        .frame(width: 260)
+                    ForEach(Cities.search(model.citySearch), id: \.self) { city in
+                        Button("\(city.name), \(city.country)") {
+                            engine.update { $0.placeName = city.name; $0.latitude = city.latitude; $0.longitude = city.longitude }
+                            model.citySearch = ""
+                        }
+                        .buttonStyle(.link)
+                    }
                     HStack {
                         TextField("Latitude", value: Binding(get: { engine.config.latitude }, set: { value in
                             engine.update { $0.latitude = value; $0.placeName = "Custom" }

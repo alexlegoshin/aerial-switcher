@@ -17,6 +17,13 @@ public struct ImageMetrics: Codable, Hashable, Sendable {
 
     public static let hueBins = 12
 
+    /// 0…1: how much of the picture is saturated red/orange/yellow (330°–60°). Strong in
+    /// sunsets and sunrises, but also in sunlit desert, so it is read together with brightness.
+    public var warmth: Double {
+        guard hues.count == Self.hueBins else { return 0 }
+        return min((hues[0] + hues[1] + hues[11]) * saturation / 0.35, 1)
+    }
+
     public init(brightness: Double, saturation: Double, hues: [Double], sourceSize: Int? = nil, sourceDate: Date? = nil) {
         self.brightness = brightness
         self.saturation = saturation
