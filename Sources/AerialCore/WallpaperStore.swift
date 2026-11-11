@@ -77,10 +77,24 @@ public struct WallpaperStore: Sendable {
 
         guard count > 0 else { throw AerialError("No wallpaper entries were found in the wallpaper store.") }
         try backUpUsersWallpaper()
+        try FileManager.default.createDirectory(at: paths.state, withIntermediateDirectories: true)
         let data = try PropertyListSerialization.data(fromPropertyList: store, format: .binary, options: 0)
         try data.write(to: paths.store, options: .atomic)
         try Data(assetID.utf8).write(to: paths.lastSet, options: .atomic)
         return count
+    }
+
+    /// Every Aerial the store names anywhere (desktops and screen savers, every display and
+    /// space): those videos must stay on disk or macOS shows its default wallpaper instead.
+    public func referencedAssetIDs() -> Set<String> {
+        guard let store = try? load() else { return [] }
+        let keys = Self.desktopEntries + Self.screenSaverEntries
+        return Set(scopes(in: store).flatMap { scope in
+            keys.flatMap { key -> [String] in
+                let content = (scope[key] as? NSDictionary)?["Content"] as? NSDictionary
+                return ((content?["Choices"] as? [NSDictionary]) ?? []).compactMap(Self.assetID(of:))
+            }
+        })
     }
 
     public var hasBackup: Bool { FileManager.default.fileExists(atPath: paths.storeBackup.path) }
@@ -132,7 +146,7 @@ public struct WallpaperStore: Sendable {
 
     private func backUpUsersWallpaper() throws {
         guard !(hasBackup && isShowingOwnChange) else { return }
-        try FileManager.default.createDirectory(at: paths.appSupport, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: paths.state, withIntermediateDirectories: true)
         try Data(contentsOf: paths.store).write(to: paths.storeBackup, options: .atomic)
     }
 

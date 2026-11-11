@@ -2,44 +2,102 @@ import Foundation
 @testable import AerialCore
 
 enum Fixtures {
-    static func asset(_ id: String, _ label: String, _ subcategory: String) -> [String: Any] {
-        ["id": id, "accessibilityLabel": label, "localizedNameKey": "\(id)_NAME", "subcategories": [subcategory], "url-4K-SDR-240FPS": "https://example.com/\(id).mov"]
+    // MARK: - Clips
+
+    static func clip(_ name: String, place: String, zone: Zone, brightness: Double?, hues: [Double]? = nil, region: String? = nil) -> Clip {
+        let metrics = brightness.map {
+            ImageMetrics(brightness: $0, saturation: 0.5, hues: hues ?? [1] + [Double](repeating: 0, count: ImageMetrics.hueBins - 1))
+        }
+        return Clip(id: name, english: name, placeID: place, placeEnglish: place, zone: zone,
+                    videoURL: URL(string: "https://example.com/\(name.replacingOccurrences(of: " ", with: "-")).mov"),
+                    metrics: metrics, region: region)
     }
 
-    /// Mirrors the real manifest: Tahoe and Golden Gate are day cycles (listed out of order),
-    /// Sonoma is a set of places, and the macOS default has a one-word label. Golden Gate Day
-    /// has a raw shot name as its label; its real name is only in the strings table.
+    static func hue(_ bin: Int) -> [Double] {
+        var hues = [Double](repeating: 0, count: ImageMetrics.hueBins)
+        hues[bin] = 1
+        return hues
+    }
+
+    /// A small pool shaped like the real one.
+    static let sequoiaNight = clip("Sequoia Night", place: "Sequoia", zone: .land, brightness: 37, region: "california")
+    static let sequoiaSunrise = clip("Sequoia Sunrise", place: "Sequoia", zone: .land, brightness: 55, region: "california")
+    static let sequoiaMorning = clip("Sequoia Morning", place: "Sequoia", zone: .land, brightness: 79, region: "california")
+    static let icelandLake = clip("Iceland Lake", place: "Iceland", zone: .land, brightness: 83, hues: hue(6), region: "aurora")
+    static let sonomaClouds = clip("Sonoma Clouds", place: "Sonoma", zone: .land, brightness: 103, region: "california")
+    static let sonomaHorizon = clip("Sonoma Horizon", place: "Sonoma", zone: .land, brightness: 70, region: "california")
+    static let londonSkyline = clip("London Skyline", place: "London", zone: .city, brightness: 87, region: "europe")
+    static let londonEvening = clip("London Evening", place: "London", zone: .city, brightness: 110, region: "europe")
+    static let newYorkNight = clip("New York Night", place: "New York", zone: .city, brightness: 56, region: "newyork")
+    static let newYorkSkyline = clip("New York Skyline", place: "New York", zone: .city, brightness: 116, region: "newyork")
+    static let kelpDark = clip("Kelp Dark", place: "Kelp", zone: .water, brightness: 43, hues: hue(6))
+    static let sealPod = clip("Seal Pod", place: "Seals", zone: .water, brightness: 66, hues: hue(1))
+    static let whale = clip("Humpback Whale", place: "Humpback Whale", zone: .water, brightness: 120)
+    static let europeNight = clip("Europe Night", place: "Ireland to Asia", zone: .earth, brightness: 24, region: "europe")
+    static let california = clip("California", place: "California to Vegas", zone: .earth, brightness: 39, region: "california")
+    static let aurora = clip("North America Aurora", place: "North America Aurora", zone: .earth, brightness: 34, region: "aurora")
+
+    static let all: [Clip] = [sequoiaNight, sequoiaSunrise, sequoiaMorning, icelandLake, sonomaClouds, sonomaHorizon,
+                              londonSkyline, londonEvening, newYorkNight, newYorkSkyline, kelpDark, sealPod, whale,
+                              europeNight, california, aurora]
+
+    static func config(pool: [Clip], _ change: (inout Config) -> Void = { _ in }) -> Config {
+        var config = Config()
+        config.pool = pool.map(\.id)
+        config.seed = 42
+        change(&config)
+        return config
+    }
+
+    static func picker(_ pool: [Clip], _ change: (inout Config) -> Void = { _ in }) -> Picker {
+        Picker(pool: pool, config: config(pool: pool, change))
+    }
+
+    // MARK: - Manifest
+
+    static func asset(_ id: String, _ name: String, _ subcategory: String, _ category: String) -> [String: Any] {
+        ["id": id, "accessibilityLabel": name, "localizedNameKey": "\(id)_NAME", "subcategories": [subcategory],
+         "categories": [category], "url-4K-SDR-240FPS": "https://example.com/\(id).mov"]
+    }
+
     static let manifest: Data = try! JSONSerialization.data(withJSONObject: [
         "assets": [
-            asset("GG-NIGHT", "Golden Gate Night", "gg"),
-            asset("TA-DAY", "Tahoe Day", "tahoe"),
-            asset("TA-MORNING", "Tahoe Morning", "tahoe"),
-            asset("TA-EVENING", "Tahoe Evening", "tahoe"),
-            asset("TA-NIGHT", "Tahoe Night", "tahoe"),
-            asset("GG-SUNSET", "Golden Gate Sunset", "gg"),
-            asset("GG-DAY", "GG_A_DAY_BLUFFS_C35_V25_HFR_HEVC", "gg"),
-            asset("SO-EVENING", "Sonoma Evening", "sonoma"),
-            asset("SO-CLOUDS", "Sonoma Clouds", "sonoma"),
-            asset("MAC", "macOS", "dynamic"),
-            asset("LONE", "Lone Night", "lone"),
+            asset("11111111-0000-0000-0000-000000000001", "Sequoia Night", "sub-sequoia", "cat-land"),
+            asset("11111111-0000-0000-0000-000000000002", "Sequoia Morning", "sub-sequoia", "cat-land"),
+            asset("11111111-0000-0000-0000-000000000003", "London Skyline", "sub-london", "cat-city"),
+            asset("11111111-0000-0000-0000-000000000004", "Europe Night", "sub-europe", "cat-space"),
+            asset("11111111-0000-0000-0000-000000000005", "Kelp Dark", "sub-kelp", "cat-water"),
+            asset("11111111-0000-0000-0000-000000000006", "macOS", "sub-mac", "cat-mac"),
+            asset("11111111-0000-0000-0000-000000000007", "SEQ_RAW_SHOT_DAY_V2", "sub-sequoia", "cat-land"),
         ],
-        "categories": [["subcategories": [["id": "gg", "localizedNameKey": "SubcategoryGoldenGate"]]]],
+        "categories": [
+            ["id": "cat-land", "localizedNameKey": "AerialCategoryLandscapes",
+             "subcategories": [["id": "sub-sequoia", "localizedNameKey": "AerialSubcategorySequoia"]]],
+            ["id": "cat-city", "localizedNameKey": "AerialCategoryCities",
+             "subcategories": [["id": "sub-london", "localizedNameKey": "AerialSubcategoryLondon"]]],
+            ["id": "cat-water", "localizedNameKey": "AerialCategoryUnderwater",
+             "subcategories": [["id": "sub-kelp", "localizedNameKey": "AerialSubcategoryKelp"]]],
+            ["id": "cat-space", "localizedNameKey": "AerialCategorySpace",
+             "subcategories": [["id": "sub-europe", "localizedNameKey": "AerialSubcategoryIrelandToAsia"]]],
+            ["id": "cat-mac", "localizedNameKey": "AerialCategoryMac"],
+        ],
     ])
 
     static let strings = Strings([
-        "en": ["GG-DAY_NAME": "Golden Gate Day", "SubcategoryGoldenGate": "Golden Gate"],
-        "zh_CN": ["GG-DAY_NAME": "金门海峡白天", "SubcategoryGoldenGate": "金门海峡"],
+        "en": ["11111111-0000-0000-0000-000000000007_NAME": "Sequoia Day", "AerialSubcategorySequoia": "Sequoia",
+               "AerialSubcategoryLondon": "London", "AerialSubcategoryIrelandToAsia": "Ireland to Asia"],
+        "ru": ["11111111-0000-0000-0000-000000000007_NAME": "Секвойя днём", "AerialSubcategorySequoia": "Секвойя"],
     ], preferredLanguages: ["en"])
 
-    static var sets: [AerialSet] { try! Manifest.sets(from: manifest, strings: strings) }
-    static var tahoe: AerialSet { sets.first { $0.id == "tahoe" }! }
+    // MARK: - Wallpaper store
 
     static func choice(provider: String, config: [String: Any]?) -> [String: Any] {
         let data = config.map { try! PropertyListSerialization.data(fromPropertyList: $0, format: .binary, options: 0) } ?? Data()
         return ["Provider": provider, "Configuration": data, "Files": [Any]()]
     }
 
-    static var aerialChoice: [String: Any] { choice(provider: "com.apple.wallpaper.choice.aerials", config: ["assetID": "OLD"]) }
+    static func aerialChoice(_ id: String = "OLD") -> [String: Any] { choice(provider: "com.apple.wallpaper.choice.aerials", config: ["assetID": id]) }
+    static var aerialChoice: [String: Any] { aerialChoice() }
     static var imageChoice: [String: Any] { choice(provider: "com.apple.wallpaper.choice.image", config: ["type": "imageFile"]) }
     static var defaultChoice: [String: Any] { choice(provider: "default", config: nil) }
 
@@ -53,7 +111,7 @@ enum Fixtures {
 
     /// A throwaway home folder with a wallpaper store in it.
     static func paths(store: [String: Any]) throws -> Paths {
-        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("aerial-tests-\(UUID().uuidString)")
         let paths = Paths(home: home)
         try FileManager.default.createDirectory(at: paths.store.deletingLastPathComponent(), withIntermediateDirectories: true)
         try write(store, to: paths)
@@ -65,20 +123,21 @@ enum Fixtures {
         try PropertyListSerialization.data(fromPropertyList: store, format: .binary, options: 0).write(to: paths.store)
     }
 
-    static func download(_ ids: [String], into paths: Paths) throws {
+    static func download(_ ids: [String], into paths: Paths, size: Int = 1) throws {
         try FileManager.default.createDirectory(at: paths.videos, withIntermediateDirectories: true)
         for id in ids {
-            try Data([1]).write(to: paths.videos.appendingPathComponent("\(id).mov"))
+            try Data(repeating: 1, count: size).write(to: paths.video(id))
         }
     }
 
-    static func date(_ hour: Int, _ minute: Int = 0) -> Date {
-        calendar.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: hour, minute: minute))!
-    }
+    // MARK: - Time
 
-    static let calendar: Calendar = {
+    static let moscow = SolarClock(latitude: 55.7558, longitude: 37.6173)
+    static let moscowZone = TimeZone(identifier: "Europe/Moscow")!
+
+    static func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0, zone: TimeZone = moscowZone) -> Date {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
-        return calendar
-    }()
+        calendar.timeZone = zone
+        return calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
+    }
 }

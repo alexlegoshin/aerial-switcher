@@ -1,0 +1,121 @@
+import Foundation
+import Testing
+@testable import AerialCore
+
+@Suite struct PickerTests {
+    func picks(_ picker: Picker, _ phase: SkyPhase, previous: Clip? = nil, recent: [String] = [], runs: Int = 600) -> [Pick] {
+        (0..<runs).compactMap { seed in
+            var rng = RandomSource(seed: UInt64(seed) &* 7919 &+ 1)
+            return picker.choose(for: phase, previous: previous, recent: recent, rng: &rng)
+        }
+    }
+
+    func clip(_ pick: Pick) -> Clip { Fixtures.all.first { $0.id == pick.clipID }! }
+
+    @Test func nightGetsOnlyDarkClips() {
+        let picker = Fixtures.picker(Fixtures.all)
+        for pick in picks(picker, .night) {
+            let clip = clip(pick)
+            let darkWater = clip.zone == .water && (clip.brightness ?? 999) <= 80
+            #expect(clip.tone == .night || darkWater, "\(clip.english) at night")
+        }
+    }
+
+    @Test func dayNeverGetsNightOrEarth() {
+        let picker = Fixtures.picker(Fixtures.all)
+        for phase in [SkyPhase.dawn, .morning, .day, .golden, .dusk] {
+            for pick in picks(picker, phase, runs: 200) {
+                let clip = clip(pick)
+                #expect(clip.zone != .earth && clip.tone != .night, "\(clip.english) at \(phase)")
+            }
+        }
+    }
+
+    @Test func sameSeedSamePick() {
+        let picker = Fixtures.picker(Fixtures.all)
+        var a = RandomSource(seed: 99), b = RandomSource(seed: 99)
+        #expect(picker.choose(for: .day, previous: nil, recent: [], rng: &a) == picker.choose(for: .day, previous: nil, recent: [], rng: &b))
+    }
+
+    @Test func cityWithoutNightShotGetsEarthOfItsRegion() {
+        let picker = Fixtures.picker([Fixtures.londonSkyline, Fixtures.europeNight, Fixtures.california]) { $0.continuity = 0 }
+        let fromLondon = picks(picker, .night).filter { $0.reason == .cityEarth }
+        #expect(!fromLondon.isEmpty)
+        #expect(fromLondon.allSatisfy { $0.clipID == Fixtures.europeNight.id })
+    }
+
+    @Test func cityWithoutRegionalEarthIsSkippedAtNight() {
+        let picker = Fixtures.picker([Fixtures.londonSkyline, Fixtures.california]) { $0.continuity = 0 }
+        #expect(picks(picker, .night).allSatisfy { $0.clipID == Fixtures.california.id && $0.reason == .direct })
+    }
+
+    @Test func landscapeAtNightSplitsBetweenWaterAndEarthByWeight() {
+        let picker = Fixtures.picker([Fixtures.icelandLake, Fixtures.kelpDark, Fixtures.aurora]) {
+            $0.continuity = 0
+            $0.nightWaterWeight = 0.7
+            $0.nightEarthWeight = 0.3
+        }
+        let fallbacks = picks(picker, .night, runs: 3000).filter { $0.reason == .nightWater || $0.reason == .nightEarth }
+        let water = Double(fallbacks.filter { $0.reason == .nightWater }.count) / Double(fallbacks.count)
+        #expect(fallbacks.count > 500)
+        #expect(abs(water - 0.7) < 0.05, "water share \(water)")
+    }
+
+    @Test func weightsAreNormalizedOverWhatExists() {
+        // No Earth flight over Iceland's region in the pool: water takes every chance.
+        let picker = Fixtures.picker([Fixtures.icelandLake, Fixtures.kelpDark, Fixtures.europeNight]) { $0.continuity = 0 }
+        let fallbacks = picks(picker, .night).filter { $0.reason == .nightWater || $0.reason == .nightEarth }
+        #expect(!fallbacks.isEmpty && fallbacks.allSatisfy { $0.reason == .nightWater })
+    }
+
+    @Test func underwaterFallbackFollowsThePalette() {
+        // Iceland is blue-green (bin 6), like Kelp Dark; Seal Pod is orange (bin 1).
+        let picker = Fixtures.picker([Fixtures.icelandLake, Fixtures.kelpDark, Fixtures.sealPod]) {
+            $0.continuity = 0
+            $0.nightEarthWeight = 0
+        }
+        let water = picks(picker, .night, runs: 3000).filter { $0.reason == .nightWater }
+        let kelp = water.filter { $0.clipID == Fixtures.kelpDark.id }.count
+        #expect(Double(kelp) / Double(water.count) > 0.6)
+    }
+
+    @Test func brightUnderwaterIsNotNight() {
+        let picker = Fixtures.picker([Fixtures.whale, Fixtures.kelpDark]) { $0.continuity = 0 }
+        #expect(picks(picker, .night).allSatisfy { $0.clipID == Fixtures.kelpDark.id })
+        let stricter = Fixtures.picker([Fixtures.sealPod]) { $0.nightWaterMaxBrightness = 60 }
+        #expect(picks(stricter, .night, runs: 20).isEmpty)
+    }
+
+    @Test func continuesTheSamePlace() {
+        let picker = Fixtures.picker(Fixtures.all) { $0.continuity = 1 }
+        let night = picks(picker, .night, previous: Fixtures.sequoiaMorning, runs: 50)
+        #expect(night.allSatisfy { $0.clipID == Fixtures.sequoiaNight.id && $0.reason == .samePlace })
+    }
+
+    @Test func avoidsWhatWasJustShown() {
+        let pool = [Fixtures.londonSkyline, Fixtures.newYorkSkyline, Fixtures.sonomaClouds]
+        let picker = Fixtures.picker(pool) { $0.continuity = 0 }
+        let result = picks(picker, .day, recent: [Fixtures.londonSkyline.id], runs: 1000)
+        let repeats = result.filter { $0.clipID == Fixtures.londonSkyline.id }.count
+        #expect(repeats < 60, "\(repeats) repeats of 1000")
+        // With nothing else at all, a repeat is still better than nothing.
+        let single = Fixtures.picker([Fixtures.londonSkyline])
+        #expect(picks(single, .day, recent: [Fixtures.londonSkyline.id], runs: 5).count == 5)
+    }
+
+    @Test func emptyPoolPicksNothing() {
+        var rng = RandomSource(seed: 1)
+        #expect(Fixtures.picker([]).choose(for: .day, previous: nil, recent: [], rng: &rng) == nil)
+    }
+
+    @Test func suitabilityTable() {
+        let picker = Fixtures.picker(Fixtures.all)
+        #expect(picker.suitability(of: Fixtures.sequoiaNight, for: .night) == 1)
+        #expect(picker.suitability(of: Fixtures.sequoiaNight, for: .day) == 0)
+        #expect(picker.suitability(of: Fixtures.sonomaClouds, for: .day) == 1)
+        #expect(picker.suitability(of: Fixtures.sonomaHorizon, for: .dusk) >= 0.5)
+        #expect(picker.suitability(of: Fixtures.sonomaHorizon, for: .night) == 0)
+        #expect(picker.suitability(of: Fixtures.europeNight, for: .dusk) == 0)
+        #expect(picker.suitability(of: Fixtures.sealPod, for: .night) == 0.8)
+    }
+}

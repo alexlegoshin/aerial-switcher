@@ -1,17 +1,20 @@
 #!/bin/zsh
-# Builds Aerial Switcher.app (and a zip of it) into dist/.
+# Builds Aerial Rotator.app (and a zip of it) into dist/.
+# ARCHS="arm64 x86_64" for a universal build; Apple silicon only by default.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="${VERSION:-1.0.3}"
-APP="dist/Aerial Switcher.app"
+VERSION="${VERSION:-2.0.0}"
+APP="dist/Aerial Rotator.app"
+ARCH_FLAGS=()
+for arch in ${=ARCHS:-arm64}; do ARCH_FLAGS+=(--arch "$arch"); done
 
-swift build -c release --arch arm64 --arch x86_64
-BIN="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/AerialSwitcher"
+swift build -c release "${ARCH_FLAGS[@]}"
+BIN="$(swift build -c release "${ARCH_FLAGS[@]}" --show-bin-path)/AerialRotator"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/AerialSwitcher"
+cp "$BIN" "$APP/Contents/MacOS/AerialRotator"
 cp Assets/AppIcon.icns "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<EOF
@@ -20,11 +23,10 @@ cat > "$APP/Contents/Info.plist" <<EOF
 <plist version="1.0">
 <dict>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
-  <key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string></array>
-  <key>CFBundleExecutable</key><string>AerialSwitcher</string>
+  <key>CFBundleExecutable</key><string>AerialRotator</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
-  <key>CFBundleIdentifier</key><string>io.github.ynnju.aerial-switcher</string>
-  <key>CFBundleName</key><string>Aerial Switcher</string>
+  <key>CFBundleIdentifier</key><string>io.github.alexlegoshin.aerial-rotator</string>
+  <key>CFBundleName</key><string>Aerial Rotator</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
@@ -37,5 +39,5 @@ EOF
 # Ad-hoc signature: required to run on Apple silicon; not a Developer ID.
 codesign --force --sign - "$APP"
 
-(cd dist && ditto -c -k --keepParent "Aerial Switcher.app" "AerialSwitcher-$VERSION.zip")
+(cd dist && ditto -c -k --keepParent "Aerial Rotator.app" "AerialRotator-$VERSION.zip")
 echo "Built $APP"

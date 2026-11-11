@@ -2,16 +2,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "AerialSwitcher",
+    name: "AerialRotator",
     platforms: [
         .macOS(.v26),
     ],
     products: [
-        .executable(name: "AerialSwitcher", targets: ["AerialSwitcher"]),
+        .executable(name: "AerialRotator", targets: ["AerialRotator"]),
     ],
     targets: [
         .target(name: "AerialCore"),
-        .executableTarget(name: "AerialSwitcher", dependencies: ["AerialCore"]),
+        .executableTarget(name: "AerialRotator", dependencies: ["AerialCore"]),
         .testTarget(name: "AerialCoreTests", dependencies: ["AerialCore"]),
     ]
 )
