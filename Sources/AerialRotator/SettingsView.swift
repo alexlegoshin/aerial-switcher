@@ -339,16 +339,27 @@ private struct GeneralPane: View {
                         }
                         .buttonStyle(.link)
                     }
-                    HStack {
+                    HStack(spacing: 8) {
+                        Text("Latitude")
                         TextField("Latitude", value: Binding(get: { engine.config.latitude }, set: { value in
+                            guard (-90...90).contains(value), value != engine.config.latitude else { return }
                             engine.update { $0.latitude = value; $0.placeName = "Custom" }
                         }), format: .number.precision(.fractionLength(4)))
-                        .frame(width: 100)
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .frame(width: 110)
+                        Text("Longitude").padding(.leading, 8)
                         TextField("Longitude", value: Binding(get: { engine.config.longitude }, set: { value in
+                            guard (-180...180).contains(value), value != engine.config.longitude else { return }
                             engine.update { $0.longitude = value; $0.placeName = "Custom" }
                         }), format: .number.precision(.fractionLength(4)))
-                        .frame(width: 100)
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .frame(width: 110)
                     }
+                    .fixedSize()
                     Caption("Sunrise and sunset are computed on the Mac; no location access needed.")
                 }
             }

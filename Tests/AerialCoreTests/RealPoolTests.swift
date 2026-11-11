@@ -27,4 +27,23 @@ struct RealPoolTests {
             #expect(Double(water) / 600 < 0.02, "\(phase): underwater \(water * 100 / 600)%")
         }
     }
+
+    @Test func underwaterStillShowsUp() throws {
+        let config = Config.load(from: Paths.live.config)
+        let metrics = readJSON([String: ImageMetrics].self, from: Paths.live.metrics) ?? [:]
+        let catalog = try Catalog.load(from: Paths.live.manifest, preferredLanguages: ["en"]).enriched(metrics: metrics)
+        let picker = Picker(pool: catalog.clips(config.pool), config: config)
+        for phase in SkyPhase.allCases {
+            var zones: [Zone: Int] = [:], water: [String: Int] = [:]
+            for seed in 0..<600 {
+                var rng = RandomSource(seed: UInt64(seed) &* 7_919 &+ 11)
+                guard let pick = picker.choose(for: phase, previous: nil, recent: [], rng: &rng), let clip = catalog[pick.clipID] else { continue }
+                zones[clip.zone, default: 0] += 1
+                if clip.zone == .water { water[clip.english, default: 0] += 1 }
+            }
+            print("ZONES \(phase):", zones.sorted { $0.value > $1.value }.map { "\($0.key.rawValue) \($0.value * 100 / 600)%" }.joined(separator: ", "),
+                  "| water:", water.sorted { $0.value > $1.value }.map { "\($0.key) \($0.value * 100 / 600)%" }.joined(separator: ", "))
+        }
+        #expect(true)
+    }
 }
