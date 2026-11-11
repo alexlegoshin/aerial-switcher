@@ -25,7 +25,7 @@ public struct RotationState: Codable, Equatable, Sendable {
     public init() {}
 
     /// Bump when the choosing rules change, so picks made under the old ones are redone.
-    public static let currentRules = 3
+    public static let currentRules = 4
 
     static let historyLimit = 40
 
@@ -83,7 +83,7 @@ public struct Rotation: Sendable {
 
     /// A downloaded pool clip that suits the part of the day: pinned ones first, then the best
     /// suited, then the least recently shown.
-    func standIn(for phase: SkyPhase, avoiding history: [String], isOnDisk: (String) -> Bool) -> Pick? {
+    public func standIn(for phase: SkyPhase, avoiding history: [String], isOnDisk: (String) -> Bool) -> Pick? {
         let pinned = Set(config.pinned)
         let candidates = picker.pool
             .filter { isOnDisk($0.id) }

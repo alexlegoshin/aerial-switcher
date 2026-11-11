@@ -92,6 +92,23 @@ import Testing
         #expect(night.allSatisfy { $0.clipID == Fixtures.sequoiaNight.id && $0.reason == .samePlace })
     }
 
+    @Test func staysWithThePlaceAtNightThroughItsFallback() {
+        let picker = Fixtures.picker(Fixtures.all) { $0.continuity = 1 }
+        // London has no night shot: its own fallback, Earth over Europe.
+        #expect(picks(picker, .night, previous: Fixtures.londonEvening, runs: 50).allSatisfy { $0.clipID == Fixtures.europeNight.id && $0.reason == .cityEarth })
+        // Sonoma has none either: dark underwater or Earth over California.
+        let sonoma = picks(picker, .night, previous: Fixtures.sonomaHorizon, runs: 200)
+        #expect(sonoma.allSatisfy { [.nightWater, .nightEarth].contains($0.reason) })
+        #expect(sonoma.filter { $0.reason == .nightEarth }.allSatisfy { $0.clipID == Fixtures.california.id })
+    }
+
+    @Test func neverTheSameClipTwiceInARow() {
+        // Sonoma Clouds suits both morning and day; the next one is another shot of Sonoma.
+        let picker = Fixtures.picker([Fixtures.sonomaClouds, Fixtures.sonomaHorizon, Fixtures.londonSkyline]) { $0.continuity = 1 }
+        let result = picks(picker, .morning, previous: Fixtures.sonomaClouds, runs: 100)
+        #expect(result.allSatisfy { $0.clipID != Fixtures.sonomaClouds.id })
+    }
+
     @Test func avoidsWhatWasJustShown() {
         let pool = [Fixtures.londonSkyline, Fixtures.newYorkSkyline, Fixtures.sonomaClouds]
         let picker = Fixtures.picker(pool) { $0.continuity = 0 }

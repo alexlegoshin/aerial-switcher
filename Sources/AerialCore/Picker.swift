@@ -136,16 +136,10 @@ public struct Picker: Sendable {
                 .filter { $0.1 >= Self.good }
         }
 
-        // Continue the story of the previous place when it has a shot for this part of the day.
-        if let previous, rng.unit() < config.continuity {
-            let options = samePlace(as: previous, excluding: previous.id).filter { $0.0.nameTone != nil || phase != .night }
-            if let result = pick(options, .samePlace) { return result }
-        }
-
-        func resolve(_ clip: Clip) -> Pick? {
+        func resolve(_ clip: Clip, excluding: String? = nil) -> Pick? {
             // The best shot of the drawn clip's place, strongly favored (weight = suitability³):
             // drawing "Los Angeles Hills" at golden hour leads to "Los Angeles Sunset".
-            let place = pool.filter { $0.placeID == clip.placeID }
+            let place = pool.filter { $0.placeID == clip.placeID && $0.id != excluding }
                 .map { ($0, suitability(of: $0, for: phase)) }
                 .filter { $0.1 >= Self.good }
                 .map { ($0.0, $0.1 * $0.1 * $0.1) }
@@ -182,6 +176,14 @@ public struct Picker: Sendable {
         }
 
         // Recent clips and places get fewer tickets (never none: a repeat beats nothing).
+        // Stay with the previous place: another shot of it for this part of the day, or at night
+        // its own fallback (London → Earth over Europe, Sonoma → similar underwater or Earth over
+        // California). Never the very same clip twice in a row.
+        if let previous, rng.unit() < config.continuity, var result = resolve(previous, excluding: previous.id) {
+            if result.reason == .direct { result.reason = .samePlace }
+            return result
+        }
+
         // By day, a ticket counts as much as the best its place can offer, so a real sunset is
         // drawn more often than a passable one. At night the fallbacks decide instead.
         func fit(_ clip: Clip) -> Double {

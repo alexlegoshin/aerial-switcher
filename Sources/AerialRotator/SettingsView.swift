@@ -235,7 +235,13 @@ private struct UpcomingPane: View {
                             if let pick = item.pick, let clip = engine.catalog[pick.clipID] {
                                 Text(clip.label)
                                 Text(pick.reason.title).foregroundStyle(.secondary)
-                                Text(model.status(of: clip.id) ?? "on disk ✓").foregroundStyle(.secondary)
+                                if let status = model.status(of: clip.id) {
+                                    // Not on disk yet: say what shows if it isn't by then.
+                                    let fallback = engine.standIn(for: item.phase).map { "else \($0.label)" } ?? "else the current one stays"
+                                    Text("\(status) · \(fallback)").foregroundStyle(.orange)
+                                } else {
+                                    Text("on disk ✓").foregroundStyle(.secondary)
+                                }
                             } else {
                                 Text("—").foregroundStyle(.secondary)
                                 Text("picked after the one before is shown").foregroundStyle(.secondary)

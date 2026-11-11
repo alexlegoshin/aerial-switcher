@@ -83,6 +83,14 @@ public final class Engine {
         }
     }
 
+    /// What would go on screen for `phase` if its pick isn't downloaded by then.
+    public func standIn(for phase: SkyPhase) -> Clip? {
+        let onDisk = Set(cacheFiles.map(\.id))
+        return Rotation(catalog: catalog, config: config)
+            .standIn(for: phase, avoiding: rotation.history, isOnDisk: { onDisk.contains($0) })
+            .flatMap { catalog[$0.clipID] }
+    }
+
     // MARK: - Changing settings
 
     public func update(_ change: (inout Config) -> Void) {

@@ -30,7 +30,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// Underwater videos up to this brightness (0–255, measured on the thumbnail) count as dark enough for night.
     public var nightWaterMaxBrightness = 80.0
     /// Chance of staying at the same place when it has a shot for the next part of the day.
-    public var continuity = 0.5
+    public var continuity = 0.8
     /// Region overrides: place (manifest subcategory English name) → region key, see `Regions`.
     public var regions: [String: String] = [:]
     /// Makes the choices reproducible; set once on first launch.
