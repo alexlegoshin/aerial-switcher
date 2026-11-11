@@ -1,96 +1,90 @@
 <p align="center">
-  <img src="Assets/icon.png" width="128" alt="Aerial Switcher icon">
+  <img src="Assets/icon.png" width="128" alt="Aerial Rotator icon">
 </p>
 
-<h1 align="center">Aerial Switcher</h1>
+<h1 align="center">Aerial Rotator</h1>
 
 <p align="center">
-  Automatically switch aerial wallpaper with the time of day.<br>
-  <a href="README.zh-CN.md">简体中文</a>
+  Живые обои macOS (Aerials) из своего набора, сменяющиеся по солнцу.<br>
+  <i>macOS Aerial wallpapers from your own pool, changing with the sun.</i><br>
+  Форк <a href="https://github.com/YnNJU/aerial-switcher">YnNJU/aerial-switcher</a>.
 </p>
 
 ---
 
-Some of the Landscape aerial wallpapers included with macOS come in sets showing the same location at different times of day. Tahoe, Sequoia, and Golden Gate are examples, but macOS doesn't automatically switch between them.
+## Что делает
 
-Aerial Switcher is a menu bar app that switches between these wallpapers at scheduled times.
+- **Свой пул.** В окне настроек — галерея всех Aerials из манифеста macOS (пейзажи, города, подводные, Земля);
+  щелчок добавляет ролик в пул или убирает.
+- **Смена по части дня, а не по часам.** Солнце считается локально (алгоритм NOAA, ±1 мин) для выбранного города:
+  ночь (солнце ниже −6°), рассвет (−6…+2°, восходит), утро, день (выше порога: 60 % полуденной высоты, в пределах 6–15°),
+  золотой час, сумерки (+2…−6°, садится). **Обои меняются только при смене части дня.** Проснулся Мак через сутки
+  в ту же часть дня — обои те же; это нормально.
+- **Подбор под время.** Тон ролика — по слову в названии (`Night`, `Sunrise`, `Morning`, `Day`, `Evening`, `Sunset`),
+  иначе по яркости превью (< 55 — ночь, < 80 — сумерки, иначе день). Ночью дневное не показывается никогда.
+- **Подмены ночью.** Город без ночного кадра → полёт над Землёй над его регионом (London → Europe Night).
+  Пейзаж без ночного кадра → тёмный подводный (яркость ≤ 80) с похожей палитрой **или** Земля над регионом;
+  вероятности 70/30 по умолчанию, нормируются по тому, что есть в пуле.
+- **Продолжение места.** С вероятностью 50 % следующий кадр берётся из того же места, если у него есть кадр
+  для следующей части дня (Sequoia Morning → Sequoia Night).
+- **Подкачка заранее.** Для каждой части дня кандидат выбирается заранее и скачивается в порядке наступления.
+  Только Wi-Fi или Ethernet: не через точку доступа (флаг «дорогой сети» + подсеть 172.20.10.x), не в Low Data Mode,
+  в Low Power Mode — только самое срочное. Фоновый приоритет сети и диска, запись потоком (память ~40 МБ).
+- **Надёжность.** Докачка после обрыва/сна/выхода (HTTP Range + If-Range), проверка размера и проигрываемости
+  (`AVAsset`), установка атомарным `rename` — недокачанный ролик никогда не попадает в папку macOS.
+  Нет нужного ролика — ставится скачанный подходящий по времени (сначала закреплённые), потом, когда нужный
+  докачается, — он. Нет и такого — обои не трогаются. Ошибка записи — обои остаются как были.
+  Выключение возвращает обои, которые были до приложения.
+- **Кэш в байтах.** Кэш — сама папка macOS `aerials/videos` (копий нет). Цель 3 ГБ, потолок 5 ГБ: сверх цели —
+  только ради ролика ближайшей смены и закреплённых. Удаляется сначала ненужное (давно показанное), потом то, что
+  нужно позже всего. Никогда — то, что на экране, на заставке или закреплено.
+- **Аварийный набор.** Булавка на ролике держит его на диске всегда (по одному на ночь, день и сумерки),
+  чтобы без сети обои продолжали следовать за солнцем.
 
-<p align="center">
-  <img src="Assets/settings.png" width="460" alt="Settings window">
-</p>
+## Установка
 
-## Features
-
-- **Scheduled switching**: Automatically switches wallpapers within a set, including syncing after startup, wake, and login.
-- **Custom times**: Drag the handles on a 24-hour timeline to adjust when each period begins.
-- **Automatic downloads**: Downloads videos that aren't installed yet.
-- **Easy to undo**: Pause to keep the current aerial, or turn switching off to restore your previous wallpaper.
-- **Out of the way**: A single menu bar icon shows the current period, with optional launch at login.
-
-## Installation
-Requires macOS 26 or later.
-
-1. Download the latest `AerialSwitcher-x.y.z.zip` from [Releases](https://github.com/YnNJU/aerial-switcher/releases) and unzip it.
-2. Move **Aerial Switcher** to the Applications folder and open it.
-
-The app is not currently notarized by Apple, so macOS may block it on first launch. Go to **System Settings › Privacy & Security**, scroll down, and select **Open Anyway**.
-
-## Usage
-
-The Settings window opens on first launch. Choose a wallpaper set; the app will download any missing videos and switch to the wallpaper for the current time of day.
-
-After that, use the menu bar icon to change wallpaper sets, pause or disable automatic switching, and adjust the time settings.
-
-If the menu bar icon is hidden, open the app again to bring up Settings.
-
-Default switching times:
-
-- Morning: 06:00
-- Day: 12:00
-- Sunset: 17:00
-- Evening: 18:00
-- Night: 21:00
-
-All times can be adjusted in Settings.
-
-## Implementation
-
-macOS stores wallpaper settings in:
-
- `~/Library/Application Support/com.apple.wallpaper/Store/Index.plist`
-
-Aerial Switcher updates this configuration at the scheduled time and restarts `WallpaperAgent` to apply the change.
-
-The app backs up your existing configuration before taking over. Turning off automatic switching restores your previous wallpaper; if you've manually changed your wallpaper in the meantime, your change is preserved.
-
-Missing aerial videos are downloaded from Apple's servers to the system directory:
-
- `~/Library/Application Support/com.apple.wallpaper/aerials/videos`
-
-**Note:** This approach relies on undocumented macOS wallpaper configuration mechanisms. Future macOS updates may break it. If you encounter a problem, please [open an issue](https://github.com/YnNJU/aerial-switcher/issues).
-
-## Build from source
-
-Install Xcode or the Command Line Tools:
+Нужна macOS 26+. Сборка только Command Line Tools (Xcode не нужен):
 
 ```bash
-git clone https://github.com/YnNJU/aerial-switcher.git
-cd aerial-switcher
-./scripts/bundle.sh
+zsh scripts/bundle.sh
+ditto "dist/Aerial Rotator.app" "/Applications/Aerial Rotator.app"
+open "/Applications/Aerial Rotator.app"
 ```
 
-This builds a universal app in `dist/`. To run the tests:
+Подпись ad-hoc, не нотаризовано: при первом запуске возможно «Apple could not verify» →
+System Settings › Privacy & Security › Open Anyway.
 
-```bash
-swift test
-```
+## Тесты
 
-If you only have the Command Line Tools installed, specify the testing plugin path manually:
+Тесты на Swift Testing. С одними Command Line Tools нужен путь к плагину макросов:
 
 ```bash
 swift test -Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing
 ```
 
-## License
+86 тестов: расчёт солнца (сверка с опубликованными восходами/закатами Москвы, полярный день/ночь), выбор
+(ночью только тёмное, нормировка вероятностей, палитра, регионы, новизна), правило смены по части дня,
+стенд-ины, политика кэша, докачка (Range, If-Range, сервер без Range, смена файла на сервере, битый файл),
+сетевая политика, хранилище обоев (наследие апстрима) и сквозные сценарии на временной папке.
 
-[MIT](LICENSE)
+## Где что лежит
+
+| Путь | Что |
+|---|---|
+| `~/Library/Application Support/AerialRotator/config.json` | пул, закреплённые, город, лимиты, веса |
+| `…/state/rotation.json` | что на экране, для какой части дня; кандидаты на следующие части дня; история |
+| `…/state/Index.original.plist` | обои пользователя до приложения (для выключения) |
+| `…/state/metrics.json` | яркость и палитра превью (пересчёт только при смене превью) |
+| `…/downloads/` | недокачанные ролики с заметками для докачки |
+| `…/logs/rotator.log` | журнал (1 МБ × 3) |
+| `~/Library/Application Support/com.apple.wallpaper/aerials/videos/` | сами ролики (кэш) |
+
+Все файлы состояния пишутся атомарно и восстанавливаются: потеря любого — только потеря истории.
+
+## Отличия от апстрима
+
+Апстрим переключает один «набор суток» (Tahoe, Sequoia…) по фиксированным часам. Здесь — пул из любых роликов,
+солнце вместо часов, подмены, подкачка и кэш. Работа с `Index.plist` (бэкап, восстановление, дисплеи и Spaces)
+взята из апстрима без изменений по сути, его тесты сохранены.
+
+Лицензия — MIT (см. `LICENSE`).

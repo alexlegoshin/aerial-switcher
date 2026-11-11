@@ -157,6 +157,8 @@ public final class Engine {
                 rules.refill(&state, starts: starts, cached: onDisk)
                 log.info("\(phase.title): \(name(pick.clipID)) (\(pick.reason.rawValue))" + (intended.map { ", standing in for \(name($0))" } ?? ""))
                 lastError = nil
+                // The previous clip is no longer needed: room for the next ones.
+                kickPrefetch(force: true)
             } catch {
                 fail("Couldn't change the wallpaper: \(error.localizedDescription)")
             }
@@ -286,7 +288,10 @@ public final class Engine {
                 return
             }
 
-            log.info("Downloading \(clip.english) (\(size / 1_000_000) MB, needed \(item.needed.formatted(date: .abbreviated, time: .shortened)))")
+            let resumeFrom = downloader.partialSize(clip.id)
+            log.info("Downloading \(clip.english) (\(size / 1_000_000) MB, needed \(item.needed.formatted(date: .abbreviated, time: .shortened)))"
+                + (resumeFrom > 0 ? ", resuming from \(resumeFrom / 1_000_000) MB" : "")
+                + (admission.evict.isEmpty ? "" : ", will make room: \(admission.evict.map(name).joined(separator: ", "))"))
             download = DownloadStatus(clipID: clip.id, received: downloader.partialSize(clip.id), total: size)
             do {
                 try await downloader.download(id: clip.id, from: clip.videoURL) { [weak self] received, total in
