@@ -244,7 +244,7 @@ private struct UpcomingPane: View {
                                 }
                             } else {
                                 Text("—").foregroundStyle(.secondary)
-                                Text("picked after the one before is shown").foregroundStyle(.secondary)
+                                Text("picked later").foregroundStyle(.secondary)
                                 Text("")
                             }
                         }
@@ -319,102 +319,110 @@ private struct GeneralPane: View {
     private var engine: Engine { model.engine }
 
     var body: some View {
-        Form {
-            LabeledContent("Wallpaper") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Toggle("Switch Wallpaper", isOn: Binding(get: { engine.config.enabled }, set: { value in engine.update { $0.enabled = value } }))
-                    Caption("When off, the wallpaper you had before is put back.")
-                    Toggle("Pause", isOn: Binding(get: { engine.config.paused }, set: { value in engine.update { $0.paused = value } }))
-                        .disabled(!engine.config.enabled)
-                    Toggle("Launch at Login", isOn: Binding(get: { model.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
-                }
+        // A plain grid rather than a Form: in a columns-style Form, steppers, sliders and
+        // text fields push their own labels into the label column and the rows go ragged.
+        Grid(alignment: .topLeading, horizontalSpacing: 14, verticalSpacing: 18) {
+            row("Wallpaper") {
+                Toggle("Switch Wallpaper", isOn: Binding(get: { engine.config.enabled }, set: { value in engine.update { $0.enabled = value } }))
+                Caption("When off, the wallpaper you had before is put back.")
+                Toggle("Pause", isOn: Binding(get: { engine.config.paused }, set: { value in engine.update { $0.paused = value } }))
+                    .disabled(!engine.config.enabled)
+                Toggle("Launch at Login", isOn: Binding(get: { model.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
             }
-            LabeledContent("Sun") {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text(engine.config.placeName).font(.headline)
-                        Text(String(format: "%.4f, %.4f", engine.config.latitude, engine.config.longitude))
-                            .monospacedDigit().foregroundStyle(.secondary)
-                    }
-                    TextField("Search a city…", text: Binding(get: { model.citySearch }, set: { model.citySearch = $0 }))
-                        .frame(width: 260)
-                    ForEach(Cities.search(model.citySearch), id: \.self) { city in
-                        Button("\(city.name), \(city.country)") {
-                            engine.update { $0.placeName = city.name; $0.latitude = city.latitude; $0.longitude = city.longitude }
-                            model.citySearch = ""
-                        }
-                        .buttonStyle(.link)
-                    }
-                    HStack(spacing: 8) {
-                        Text("Latitude")
-                        TextField("Latitude", value: Binding(get: { engine.config.latitude }, set: { value in
-                            guard (-90...90).contains(value), value != engine.config.latitude else { return }
-                            engine.update { $0.latitude = value; $0.placeName = "Custom" }
-                        }), format: .number.precision(.fractionLength(4)))
-                        .labelsHidden()
-                        .multilineTextAlignment(.trailing)
-                        .monospacedDigit()
-                        .frame(width: 110)
-                        Text("Longitude").padding(.leading, 8)
-                        TextField("Longitude", value: Binding(get: { engine.config.longitude }, set: { value in
-                            guard (-180...180).contains(value), value != engine.config.longitude else { return }
-                            engine.update { $0.longitude = value; $0.placeName = "Custom" }
-                        }), format: .number.precision(.fractionLength(4)))
-                        .labelsHidden()
-                        .multilineTextAlignment(.trailing)
-                        .monospacedDigit()
-                        .frame(width: 110)
-                    }
-                    .fixedSize()
-                    Caption("Sunrise and sunset are computed on the Mac; no location access needed.")
+            row("Sun") {
+                HStack {
+                    Text(engine.config.placeName).font(.headline)
+                    Text(String(format: "%.4f, %.4f", engine.config.latitude, engine.config.longitude))
+                        .monospacedDigit().foregroundStyle(.secondary)
                 }
+                TextField("City", text: Binding(get: { model.citySearch }, set: { model.citySearch = $0 }), prompt: Text("Search a city…"))
+                    .labelsHidden()
+                    .frame(width: 260)
+                ForEach(Cities.search(model.citySearch), id: \.self) { city in
+                    Button("\(city.name), \(city.country)") {
+                        engine.update { $0.placeName = city.name; $0.latitude = city.latitude; $0.longitude = city.longitude }
+                        model.citySearch = ""
+                    }
+                    .buttonStyle(.link)
+                }
+                HStack(spacing: 8) {
+                    Text("Latitude")
+                    TextField("Latitude", value: Binding(get: { engine.config.latitude }, set: { value in
+                        guard (-90...90).contains(value), value != engine.config.latitude else { return }
+                        engine.update { $0.latitude = value; $0.placeName = "Custom" }
+                    }), format: .number.precision(.fractionLength(4)))
+                    .labelsHidden()
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .frame(width: 110)
+                    Text("Longitude").padding(.leading, 8)
+                    TextField("Longitude", value: Binding(get: { engine.config.longitude }, set: { value in
+                        guard (-180...180).contains(value), value != engine.config.longitude else { return }
+                        engine.update { $0.longitude = value; $0.placeName = "Custom" }
+                    }), format: .number.precision(.fractionLength(4)))
+                    .labelsHidden()
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .frame(width: 110)
+                }
+                .fixedSize()
+                Caption("Sunrise and sunset are computed on the Mac; no location access needed.")
             }
-            LabeledContent("Cache") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Stepper("Aim for \(gigabytes(engine.config.cacheSoftLimitMB))", value: Binding(
-                        get: { engine.config.cacheSoftLimitMB },
-                        set: { value in engine.update { $0.cacheSoftLimitMB = value; $0.cacheHardLimitMB = max($0.cacheHardLimitMB, value) } }
-                    ), in: 1024...30720, step: 512)
-                    Stepper("Never above \(gigabytes(engine.config.cacheHardLimitMB))", value: Binding(
-                        get: { engine.config.cacheHardLimitMB },
-                        set: { value in engine.update { $0.cacheHardLimitMB = max(value, $0.cacheSoftLimitMB) } }
-                    ), in: 1024...40960, step: 512)
-                    Caption("Videos are 150 MB – 1.5 GB each. Going past the first number is allowed only for the next video due and the pinned ones. Downloads run on Wi-Fi or Ethernet only, never over a Personal Hotspot.")
-                }
+            row("Cache") {
+                Stepper("Aim for \(gigabytes(engine.config.cacheSoftLimitMB))", value: Binding(
+                    get: { engine.config.cacheSoftLimitMB },
+                    set: { value in engine.update { $0.cacheSoftLimitMB = value; $0.cacheHardLimitMB = max($0.cacheHardLimitMB, value) } }
+                ), in: 1024...30720, step: 512)
+                .fixedSize()
+                Stepper("Never above \(gigabytes(engine.config.cacheHardLimitMB))", value: Binding(
+                    get: { engine.config.cacheHardLimitMB },
+                    set: { value in engine.update { $0.cacheHardLimitMB = max(value, $0.cacheSoftLimitMB) } }
+                ), in: 1024...40960, step: 512)
+                .fixedSize()
+                Caption("Videos are 150 MB – 1.5 GB each. Going past the first number is allowed only for the next video due and the pinned ones. Downloads run on Wi-Fi or Ethernet only, never over a Personal Hotspot.")
             }
-            LabeledContent("Night") {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Landscapes without a night shot:")
-                        Text("underwater \(Int(waterShare * 100))% · Earth \(100 - Int(waterShare * 100))%").monospacedDigit()
-                    }
-                    Slider(value: Binding(get: { waterShare }, set: { value in
-                        engine.update { $0.nightWaterWeight = value; $0.nightEarthWeight = 1 - value }
-                    }), in: 0...1, step: 0.05)
-                    .frame(width: 300)
-                    HStack {
-                        Text("Underwater counts as night up to brightness")
-                        Text("\(Int(engine.config.nightWaterMaxBrightness))").monospacedDigit()
-                    }
-                    Slider(value: Binding(get: { engine.config.nightWaterMaxBrightness }, set: { value in
-                        engine.update { $0.nightWaterMaxBrightness = value }
-                    }), in: 40...120, step: 5)
-                    .frame(width: 300)
-                    HStack {
-                        Text("Stay at the same place when it has a shot for the next part of the day:")
-                        Text("\(Int(engine.config.continuity * 100))%").monospacedDigit()
-                    }
-                    Slider(value: Binding(get: { engine.config.continuity }, set: { value in
-                        engine.update { $0.continuity = value }
-                    }), in: 0...1, step: 0.1)
-                    .frame(width: 300)
-                }
+            row("Night") {
+                slider("Landscapes without a night shot", value: "underwater \(Int(waterShare * 100))% · Earth \(100 - Int(waterShare * 100))%",
+                       Binding(get: { waterShare }, set: { value in engine.update { $0.nightWaterWeight = value; $0.nightEarthWeight = 1 - value } }),
+                       in: 0...1, step: 0.05)
+                slider("Underwater counts as night up to brightness", value: "\(Int(engine.config.nightWaterMaxBrightness))",
+                       Binding(get: { engine.config.nightWaterMaxBrightness }, set: { value in engine.update { $0.nightWaterMaxBrightness = value } }),
+                       in: 40...120, step: 5)
+            }
+            row("Places") {
+                slider("Stay with the same place when it can", value: "\(Int(engine.config.continuity * 100))%",
+                       Binding(get: { engine.config.continuity }, set: { value in engine.update { $0.continuity = value } }),
+                       in: 0...1, step: 0.1)
+                Caption("Another shot of the same place for the next part of the day (Sequoia Morning → Sequoia Night), or at night its own stand-in: Earth over the same region, or underwater in similar colors.")
             }
             if let error = engine.lastError ?? model.error {
-                LabeledContent("Problem") { Text(error).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
+                row("Problem") { Text(error).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
             }
         }
-        .formStyle(.columns)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func row<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+        GridRow {
+            Text(label)
+                .fontWeight(.medium)
+                .gridColumnAlignment(.trailing)
+                .frame(minWidth: 90, alignment: .trailing)
+            VStack(alignment: .leading, spacing: 6) { content() }
+                .frame(maxWidth: 640, alignment: .leading)
+        }
+    }
+
+    private func slider(_ title: String, value: String, _ binding: Binding<Double>, in range: ClosedRange<Double>, step: Double) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(value).monospacedDigit().foregroundStyle(.secondary)
+            }
+            .frame(width: 420)
+            Slider(value: binding, in: range, step: step).frame(width: 420)
+        }
     }
 
     private var waterShare: Double {
@@ -434,9 +442,13 @@ private struct AboutPane: View {
             Text("Aerial Rotator").font(.title2.bold())
             Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev")")
                 .foregroundStyle(.secondary)
-            Text("Aerial wallpapers from your own pool, changing with the sun.\nA fork of Aerial Switcher by YnNJU.")
+            Text("Aerial wallpapers from your own pool, changing with the sun.")
                 .multilineTextAlignment(.center)
                 .padding(.top, 4)
+            Text("By Alexey Legoshin, based on Aerial Switcher by YnNJU.\nFree and open source under the MIT License.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
             HStack(spacing: 16) {
                 Link("Aerial Rotator on GitHub", destination: URL(string: "https://github.com/alexlegoshin/aerial-switcher")!)
                 Link("Original project", destination: URL(string: "https://github.com/YnNJU/aerial-switcher")!)

@@ -88,8 +88,9 @@ extension PickReason {
     }
 }
 
+/// Binary units (1 GB = 1024 MB), the same the cache limits are set in.
 func formatBytes(_ bytes: Int64) -> String {
-    ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    ByteCountFormatter.string(fromByteCount: bytes, countStyle: .binary)
 }
 
 func formatTime(_ date: Date) -> String {

@@ -28,7 +28,11 @@ final class SettingsWindow {
         // policy change has taken effect.
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
-        DispatchQueue.main.async { NSApp.activate(ignoringOtherApps: true) }
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            // No text field focused on open (the city search would grab it).
+            window.makeFirstResponder(nil)
+        }
     }
 
     private func makeWindow() -> NSWindow {
@@ -55,6 +59,8 @@ final class SettingsWindow {
             MainActor.assumeIsolated { _ = NSApp.setActivationPolicy(.accessory) }
         }
         self.window = window
+        // onTabChange fires before the window exists; title it here too.
+        window.title = (SettingsTab(rawValue: UserDefaults.standard.string(forKey: "settingsTab") ?? "") ?? .pool).title
         hosting.view.layoutSubtreeIfNeeded()
         resize()
         window.center()

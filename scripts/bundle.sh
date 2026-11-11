@@ -1,11 +1,14 @@
 #!/bin/zsh
-# Builds Aerial Rotator.app (and a zip of it) into dist/.
+# Builds Aerial Rotator.app and dist/AerialRotator-<version>.zip.
+#   --install   also copy the app to /Applications (quitting a running copy first)
 # ARCHS="arm64 x86_64" for a universal build; Apple silicon only by default.
+# The .app is kept in a *.noindex folder so Spotlight and Launchpad don't list a second copy.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION="${VERSION:-2.0.0}"
-APP="dist/Aerial Rotator.app"
+STAGE=".build/bundle.noindex"
+APP="$STAGE/Aerial Rotator.app"
 ARCH_FLAGS=()
 for arch in ${=ARCHS:-arm64}; do ARCH_FLAGS+=(--arch "$arch"); done
 
@@ -39,5 +42,14 @@ EOF
 # Ad-hoc signature: required to run on Apple silicon; not a Developer ID.
 codesign --force --sign - "$APP"
 
-(cd dist && ditto -c -k --keepParent "Aerial Rotator.app" "AerialRotator-$VERSION.zip")
-echo "Built $APP"
+mkdir -p dist
+rm -f "dist/AerialRotator-$VERSION.zip"
+ditto -c -k --keepParent "$APP" "dist/AerialRotator-$VERSION.zip"
+echo "Built $APP and dist/AerialRotator-$VERSION.zip"
+
+if [[ "${1:-}" == "--install" ]]; then
+  pkill -f "Aerial Rotator.app/Contents/MacOS/AerialRotator" && sleep 1 || true
+  ditto "$APP" "/Applications/Aerial Rotator.app"
+  open "/Applications/Aerial Rotator.app"
+  echo "Installed /Applications/Aerial Rotator.app"
+fi
