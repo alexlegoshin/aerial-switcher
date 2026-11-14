@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="${VERSION:-2.0.0}"
+VERSION="${VERSION:-2.0.1}"
 STAGE=".build/bundle.noindex"
 APP="$STAGE/Aerial Rotator.app"
 ARCH_FLAGS=()

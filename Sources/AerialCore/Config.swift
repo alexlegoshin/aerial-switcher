@@ -31,6 +31,8 @@ public struct Config: Codable, Equatable, Sendable {
     public var nightWaterMaxBrightness = 80.0
     /// Chance of staying at the same place when it has a shot for the next part of the day.
     public var continuity = 0.8
+    /// …but for at most this many parts of the day in a row.
+    public var placeRun = 3
     /// Region overrides: place (manifest subcategory English name) → region key, see `Regions`.
     public var regions: [String: String] = [:]
     /// Makes the choices reproducible; set once on first launch.
@@ -54,6 +56,7 @@ public struct Config: Codable, Equatable, Sendable {
         nightEarthWeight = try c.decodeIfPresent(Double.self, forKey: .nightEarthWeight) ?? d.nightEarthWeight
         nightWaterMaxBrightness = try c.decodeIfPresent(Double.self, forKey: .nightWaterMaxBrightness) ?? d.nightWaterMaxBrightness
         continuity = try c.decodeIfPresent(Double.self, forKey: .continuity) ?? d.continuity
+        placeRun = try c.decodeIfPresent(Int.self, forKey: .placeRun) ?? d.placeRun
         regions = try c.decodeIfPresent([String: String].self, forKey: .regions) ?? d.regions
         seed = try c.decodeIfPresent(UInt64.self, forKey: .seed) ?? d.seed
     }

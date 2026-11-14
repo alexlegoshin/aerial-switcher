@@ -43,7 +43,7 @@ day-cycle set (Tahoe, Sequoia…) at fixed hours. The wallpaper store handling c
   (London → Europe at night). A landscape without one gets dark underwater footage in similar colors or an
   Earth flight over its region (70 / 30 by default).
 - **Stays with a place.** The next part of the day continues the same place when it can
-  (Los Angeles Sunset → Los Angeles Overpass → Los Angeles Beach), never the same video twice in a row.
+  (London from Above → London Evening → Europe Night), for at most three parts of the day in a row, then moves on; a video doesn't come back soon after it was shown.
 - **Downloads ahead, politely.** The video for each coming part of the day is chosen in advance and fetched in
   order. Wi-Fi or Ethernet only: never over a Personal Hotspot or in Low Data Mode. Background network and disk
   priority, streamed to disk (about 40 MB of memory).
@@ -115,7 +115,7 @@ Universal build: `ARCHS="arm64 x86_64" zsh scripts/bundle.sh`.
 
 ### Tests
 
-98 tests in Swift Testing. With Command Line Tools only, the testing macro plugin needs its path:
+101 tests in Swift Testing. With Command Line Tools only, the testing macro plugin needs its path:
 
 ```bash
 swift test -Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing

@@ -25,7 +25,7 @@ public struct RotationState: Codable, Equatable, Sendable {
     public init() {}
 
     /// Bump when the choosing rules change, so picks made under the old ones are redone.
-    public static let currentRules = 4
+    public static let currentRules = 5
 
     static let historyLimit = 40
 
@@ -115,18 +115,20 @@ public struct Rotation: Sendable {
     public func refill(_ state: inout RotationState, starts: [SkyPhase: Date], cached: Set<String> = []) {
         state.onDeck = state.onDeck.filter { poolIDs.contains($0.value.clipID) }
         let upcoming = starts.sorted { $0.value < $1.value }
-        var previous = state.shown.flatMap { catalog[$0.clipID] }
+        // The sequence as it will play, newest first: what's lined up so far, then what was shown.
+        var chain = state.history
+        if let shown = state.shown?.clipID, chain.first != shown { chain.insert(shown, at: 0) }
         for (phase, date) in upcoming {
             if let existing = state.onDeck[phase] {
-                previous = catalog[existing.clipID]
+                chain.insert(existing.clipID, at: 0)
                 continue
             }
-            // Avoid what was shown recently and what is already lined up for other parts of the day.
-            let lined = state.onDeck.values.map(\.clipID)
+            let lined = Set(state.onDeck.values.map(\.clipID))
             var rng = RandomSource(mixing: config.seed, UInt64(phase.hashIndex), UInt64(max(date.timeIntervalSince1970, 0) / 60))
-            if let pick = picker.choose(for: phase, previous: previous, recent: lined + state.history, cached: cached, rng: &rng) {
+            if let pick = picker.choose(for: phase, previous: chain.first.flatMap { catalog[$0] }, recent: chain,
+                                        avoid: lined, cached: cached, rng: &rng) {
                 state.onDeck[phase] = pick
-                previous = catalog[pick.clipID]
+                chain.insert(pick.clipID, at: 0)
             }
         }
     }

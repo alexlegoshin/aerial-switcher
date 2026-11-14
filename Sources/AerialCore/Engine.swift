@@ -116,7 +116,8 @@ public final class Engine {
             }
         }
         if config.pool != before.pool || config.latitude != before.latitude || config.longitude != before.longitude
-            || config.nightWaterWeight != before.nightWaterWeight || config.nightEarthWeight != before.nightEarthWeight {
+            || config.nightWaterWeight != before.nightWaterWeight || config.nightEarthWeight != before.nightEarthWeight
+            || config.continuity != before.continuity || config.placeRun != before.placeRun {
             // Picks made under the old settings are redone; what is on screen stays.
             rotation.onDeck = [:]
         }

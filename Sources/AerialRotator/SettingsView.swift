@@ -393,7 +393,12 @@ private struct GeneralPane: View {
                 slider("Stay with the same place when it can", value: "\(Int(engine.config.continuity * 100))%",
                        Binding(get: { engine.config.continuity }, set: { value in engine.update { $0.continuity = value } }),
                        in: 0...1, step: 0.1)
-                Caption("Another shot of the same place for the next part of the day (Sequoia Morning → Sequoia Night), or at night its own stand-in: Earth over the same region, or underwater in similar colors.")
+                Stepper("At most \(engine.config.placeRun) parts of the day in a row", value: Binding(
+                    get: { engine.config.placeRun },
+                    set: { value in engine.update { $0.placeRun = value } }
+                ), in: 1...6)
+                .fixedSize()
+                Caption("Another shot of the same place for the next part of the day (Sequoia Morning → Sequoia Night), or at night its own stand-in: Earth over the same region, or underwater in similar colors. Then on to another place.")
             }
             if let error = engine.lastError ?? model.error {
                 row("Problem") { Text(error).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }

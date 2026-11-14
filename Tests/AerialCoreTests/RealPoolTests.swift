@@ -46,4 +46,14 @@ struct RealPoolTests {
         }
         #expect(true)
     }
+
+    @Test func realPoolPlaysWithoutLoops() throws {
+        let config = Config.load(from: Paths.live.config)
+        let metrics = readJSON([String: ImageMetrics].self, from: Paths.live.metrics) ?? [:]
+        let catalog = try Catalog.load(from: Paths.live.manifest, preferredLanguages: ["en"]).enriched(metrics: metrics)
+        let rules = Rotation(catalog: catalog, config: config)
+        let shown = RotationTests.play(rules, days: 7)
+        print("PLAY", shown.compactMap { catalog[$0]?.english }.joined(separator: " → "))
+        #expect(RotationTests.longestRun(shown, place: { catalog[$0]?.placeID }) <= config.placeRun)
+    }
 }

@@ -119,10 +119,18 @@ public struct Picker: Sendable {
 
     static let good = 0.5
 
-    public func choose(for phase: SkyPhase, previous: Clip?, recent: [String], cached: Set<String> = [], rng: inout RandomSource) -> Pick? {
+    /// - Parameters:
+    ///   - recent: shown or lined-up clip IDs in order, newest first (`recent[0]` is `previous`).
+    ///   - avoid: clips already lined up for other parts of the day.
+    public func choose(for phase: SkyPhase, previous: Clip?, recent: [String], avoid: Set<String> = [], cached: Set<String> = [],
+                       rng: inout RandomSource) -> Pick? {
         guard !pool.isEmpty else { return nil }
-        let recentClips = Array(recent.prefix(Self.freshWindow))
-        let recentPlaces = Set(recent.prefix(Self.placeWindow).compactMap { id in pool.first { $0.id == id }?.placeID })
+        let recentClips = Set(recent.prefix(Self.freshWindow)).union(avoid)
+        func placeID(_ id: String) -> String? { pool.first { $0.id == id }?.placeID }
+        let recentPlaces = Set(recent.prefix(Self.placeWindow).compactMap(placeID))
+        // How many parts of the day in a row the previous place has had.
+        let run = previous.map { prev in max(recent.prefix { placeID($0) == prev.placeID }.count, 1) } ?? 0
+        let placeRun = max(config.placeRun, 1)
 
         func freshness(_ clip: Clip) -> Double {
             (recentClips.contains(clip.id) ? 0.05 : 1) * (cached.contains(clip.id) ? 1.5 : 1)
@@ -136,17 +144,17 @@ public struct Picker: Sendable {
                 .filter { $0.1 >= Self.good }
         }
 
-        func resolve(_ clip: Clip, excluding: String? = nil) -> Pick? {
+        func resolve(_ clip: Clip, excluding: Set<String> = []) -> Pick? {
             // The best shot of the drawn clip's place, strongly favored (weight = suitability³):
             // drawing "Los Angeles Hills" at golden hour leads to "Los Angeles Sunset".
-            let place = pool.filter { $0.placeID == clip.placeID && $0.id != excluding }
+            let place = pool.filter { $0.placeID == clip.placeID && !excluding.contains($0.id) }
                 .map { ($0, suitability(of: $0, for: phase)) }
                 .filter { $0.1 >= Self.good }
                 .map { ($0.0, $0.1 * $0.1 * $0.1) }
             if let result = pick(place, .direct) { return result }
             guard phase == .night else { return nil }
 
-            let earth = pool.filter { $0.zone == .earth && $0.region != nil && $0.region == clip.region }
+            let earth = pool.filter { $0.zone == .earth && $0.region != nil && $0.region == clip.region && !excluding.contains($0.id) }
                 .map { ($0, suitability(of: $0, for: .night)) }.filter { $0.1 > 0 }
             switch clip.zone {
             case .city:
@@ -154,7 +162,7 @@ public struct Picker: Sendable {
             case .land, .water:
                 // Underwater with a palette close to the place's own.
                 let reference = ImageMetrics.average(pool.filter { $0.placeID == clip.placeID }.compactMap(\.metrics))
-                let water = pool.filter { $0.zone == .water && $0.id != clip.id && suitability(of: $0, for: .night) > 0 }
+                let water = pool.filter { $0.zone == .water && $0.id != clip.id && !excluding.contains($0.id) && suitability(of: $0, for: .night) > 0 }
                     .map { candidate -> (Clip, Double) in
                         let similarity = reference.flatMap { ref in candidate.metrics.map { ref.similarity(to: $0) } } ?? 0.5
                         return (candidate, 0.2 + similarity * similarity)
@@ -175,11 +183,12 @@ public struct Picker: Sendable {
             }
         }
 
-        // Recent clips and places get fewer tickets (never none: a repeat beats nothing).
         // Stay with the previous place: another shot of it for this part of the day, or at night
         // its own fallback (London → Earth over Europe, Sonoma → similar underwater or Earth over
-        // California). Never the very same clip twice in a row.
-        if let previous, rng.unit() < config.continuity, var result = resolve(previous, excluding: previous.id) {
+        // California). At most `placeRun` parts of the day in a row, and only with clips not
+        // shown recently or lined up elsewhere.
+        if let previous, run < placeRun, rng.unit() < config.continuity,
+           var result = resolve(previous, excluding: recentClips.union([previous.id])) {
             if result.reason == .direct { result.reason = .samePlace }
             return result
         }
@@ -191,11 +200,23 @@ public struct Picker: Sendable {
             let best = pool.filter { $0.placeID == clip.placeID }.map { suitability(of: $0, for: phase) }.max() ?? 0
             return 0.05 + best * best * best
         }
-        var tickets = pool.map { ($0, fit($0) * (recentPlaces.contains($0.placeID) ? 0.3 : 1.0) * (recentClips.contains($0.id) ? 0.05 : 1.0)) }
+        // Recent clips and places get fewer tickets (never none: a repeat beats nothing); a place
+        // that just had its full run gets almost none.
+        func placeWeight(_ clip: Clip) -> Double {
+            if let previous, clip.placeID == previous.placeID, run >= placeRun { return 0.02 }
+            return recentPlaces.contains(clip.placeID) ? 0.3 : 1.0
+        }
+        var tickets = pool.map { ($0, fit($0) * placeWeight($0) * (recentClips.contains($0.id) ? 0.05 : 1.0)) }
+        // A ticket that resolves to something shown recently is kept aside while other tickets
+        // remain (a place's best shot can be the one just shown).
+        var stale: Pick?
         while let ticket = rng.weighted(tickets.map { ($0.0, $0.1) }) {
             tickets.removeAll { $0.0.id == ticket.id }
-            if let result = resolve(ticket) { return result }
+            guard let result = resolve(ticket) else { continue }
+            if !recentClips.contains(result.clipID) { return result }
+            if stale == nil { stale = result }
         }
+        if let stale { return stale }
 
         // Nothing resolved: whatever suits best.
         let best = pool.map { ($0, suitability(of: $0, for: phase)) }.filter { $0.1 > 0 }

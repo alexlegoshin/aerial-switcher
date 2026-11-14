@@ -128,4 +128,56 @@ import Testing
         #expect(RotationState.load(from: url).onDeck[.night]?.reason == .cityEarth)
         #expect(RotationState.load(from: URL(fileURLWithPath: "/nonexistent")) == RotationState())
     }
+
+    /// Plays `days` of changes of the part of the day and returns what went on screen.
+    static func play(_ rules: Rotation, days: Int, from start: Date = Fixtures.date(2026, 11, 12, 0)) -> [String] {
+        var state = RotationState()
+        var shown: [String] = []
+        var t = start
+        for _ in 0..<(days * 6) {
+            guard let next = Fixtures.moscow.transitions(after: t, horizon: 30 * 3600).first else { break }
+            t = next.date + 1
+            rules.refill(&state, starts: Fixtures.moscow.nextStarts(after: t))
+            let decision = rules.decide(state, phase: next.phase, isOnDisk: { _ in true })
+            rules.apply(decision, to: &state, now: t)
+            if case let .show(pick, _, _) = decision { shown.append(pick.clipID) }
+            rules.refill(&state, starts: Fixtures.moscow.nextStarts(after: t))
+        }
+        return shown
+    }
+
+    static func longestRun(_ ids: [String], place: (String) -> String?) -> Int {
+        var best = 0, current = 0, last: String?
+        for id in ids {
+            let p = place(id)
+            current = (p != nil && p == last) ? current + 1 : 1
+            last = p
+            best = max(best, current)
+        }
+        return best
+    }
+
+    @Test func aPlaceWithEveryPartOfTheDayDoesNotTakeOver() {
+        // Los Angeles has a shot for every part of the day; continuity at 100 %.
+        let la = ["Los Angeles Night", "Los Angeles Sunrise", "Los Angeles Morning", "Los Angeles Day", "Los Angeles Evening", "Los Angeles Sunset"]
+            .map { Fixtures.clip($0, place: "Los Angeles", zone: .city, brightness: 90, region: "california") }
+        let pool = la + Fixtures.all
+        let rules = Rotation(catalog: Catalog(clips: pool), config: Fixtures.config(pool: pool) { $0.continuity = 1 })
+        let shown = Self.play(rules, days: 6)
+        #expect(shown.count >= 30)
+        let place = { (id: String) in pool.first { $0.id == id }?.placeID }
+        #expect(Self.longestRun(shown, place: place) <= 3, "\(shown)")
+        // And it isn't stuck either: several places over a few days.
+        #expect(Set(shown.compactMap(place)).count >= 5)
+    }
+
+    @Test func noClipComesBackWithinSixChanges() {
+        let pool = Fixtures.all
+        let rules = Rotation(catalog: Catalog(clips: pool), config: Fixtures.config(pool: pool) { $0.continuity = 1 })
+        let shown = Self.play(rules, days: 6)
+        for (i, id) in shown.enumerated() {
+            let window = shown[max(0, i - 3)..<i]
+            #expect(!window.contains(id), "\(id) again at \(i): \(shown)")
+        }
+    }
 }
